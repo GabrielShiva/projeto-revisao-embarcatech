@@ -35,6 +35,9 @@ pico_sdk_init()
 
 add_executable(projeto_revisao src/main.c src/ssd1306.c)
 
+# Then generate PIO header
+pico_generate_pio_header(projeto_revisao ${CMAKE_CURRENT_LIST_DIR}/ws2818b.pio)
+
 pico_set_program_name(projeto_revisao "projeto_revisao")
 pico_set_program_version(projeto_revisao "0.1")
 
@@ -56,6 +59,8 @@ target_link_libraries(projeto_revisao
         hardware_adc
         hardware_irq
         hardware_i2c
+        hardware_pio
+        hardware_clocks
         )
 
 pico_add_extra_outputs(projeto_revisao)

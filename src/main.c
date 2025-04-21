@@ -3,7 +3,8 @@
 #include "pico/stdlib.h" // inclui a biblioteca padrão do pico para gpios e temporizadores
 #include "hardware/adc.h" // inclui a biblioteca para manipular o hardware adc
 #include "hardware/irq.h" // inclui a biblioteca para interrupções
-#include "hardware/i2c.h" // inclui a biblioteca para utilizar oprotocolo i2c
+#include "hardware/i2c.h" // inclui a biblioteca para utilizar o protocolo i2c
+#include "inc/neopixel.h" // inclui a biblioteca para utilizar a matriz de LEDs
 #include "inc/ssd1306.h" // inclui a biblioteca com definição das funções para manipulação do display OLED
 #include "inc/font.h" // inclui a biblioteca com as fontes dos caracteres para o display OLED
 
@@ -14,6 +15,14 @@
 #define JOYSTICK_Y 26
 #define BTN_A 5
 #define BTN_B 6
+
+// Pino e número de LEDs da matriz de LEDs.
+#define LED_PIN 7
+#define LED_COUNT 25
+
+// Define os valores máximo e mínimo para configuração
+#define VOL_MIN 0
+#define VOL_MAX 10
 
 // definição de parametros para o protocolo i2c
 #define I2C_ID i2c1
@@ -26,7 +35,7 @@
 ssd1306_t ssd;
 
 // definição de constantes para o display
-volatile uint8_t border_counter = 0;
+volatile uint volume_scale = 0;
 
 const uint16_t central_x_pos = 2049;
 const uint16_t central_y_pos = 1988;
@@ -117,42 +126,7 @@ void set_display_border() {
     // limpa o display
     ssd1306_fill(&ssd, false);
     ssd1306_send_data(&ssd);
-
-    if (!border_counter) {
-        ssd1306_rect(&ssd, 1, 1, 126, 62, true, false);
-    } else {
-        for (uint x = 0; x < 128; x++) {
-            if ((x % 2) == 0) {
-                ssd1306_pixel(&ssd, x, 0, true);
-            } else {
-                ssd1306_pixel(&ssd, x, 0, false);
-            }
-        }
-
-        for (uint x = 0; x < 128; x++) {
-            if ((x % 2) == 0) {
-                ssd1306_pixel(&ssd, x, 63, true);
-            } else {
-                ssd1306_pixel(&ssd, x, 63, false);
-            }
-        }
-
-        for (uint y = 0; y < 64; y++) {
-            if ((y % 2) == 0) {
-                ssd1306_pixel(&ssd, 0, y, true);
-            } else {
-                ssd1306_pixel(&ssd, 0, y, false);
-            }
-        }
-
-        for (uint y = 0; y < 64; y++) {
-            if ((y % 2) == 0) {
-                ssd1306_pixel(&ssd, 127, y, true);
-            } else {
-                ssd1306_pixel(&ssd, 127, y, false);
-            }
-        }
-    } 
+    ssd1306_rect(&ssd, 1, 1, 126, 62, true, false);
 }
 
 // função para tratar as interrupções das gpios
@@ -165,8 +139,16 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
 
         // verifica se o botão A foi pressionado
         if (gpio == BTN_A) {
+            if (led_rgb_state && volume_scale > VOL_MIN) {
+                volume_scale = volume_scale - 1;
+            }
+            
             printf("Botao A pressionado!\n");
         } else if (gpio == BTN_B) { // verifica se o botão B foi pressionado
+            if (led_rgb_state && volume_scale < VOL_MAX) {
+                volume_scale = volume_scale + 1;
+            }
+
             printf("Botao B pressionado!\n");
         } else if (gpio == JOYSTICK_SW) { // verifica se o botão SW foi pressionado
             led_rgb_state = !led_rgb_state; // muda o led que estará aceso (vermelho ou verde)
@@ -177,6 +159,8 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
                 printf("LED aceso: verde!\n") :
                 printf("LED aceso: vermelho!\n");
         }
+
+        printf("Volume: %d\n", volume_scale);
     } 
 }
 
@@ -236,9 +220,17 @@ int main() {
     gpio_set_irq_enabled(BTN_B, GPIO_IRQ_EDGE_FALL, true);
     gpio_set_irq_enabled(JOYSTICK_SW, GPIO_IRQ_EDGE_FALL, true);
 
+    // Inicializa e limpa a matriz de LEDs
+    npInit(LED_PIN, LED_COUNT);
+    npClear();
+    sleep_ms(1500);
+
     while (true) {
         // define o tipo de borda
         set_display_border();
+
+        // Limpa a matriz de LEDs
+        npClear();
 
         // aplica o estado atual para os LED
         if (led_rgb_state) {
@@ -248,6 +240,8 @@ int main() {
             gpio_put(LED_R, 1); 
             gpio_put(LED_G, 0); 
         }
+
+
         
         // realiza leitura para o eixo x
         uint16_t x_value = adc_start_read(1);
@@ -265,6 +259,9 @@ int main() {
 
         // atualiza o display OLED
         ssd1306_send_data(&ssd);
+
+        // Atualiza a matriz de LEDs
+        npWrite();
 
         // adiciona um atraso de 60ms para criar tempo para vizualização dos dados no monitor serial
         sleep_ms(60);
