@@ -2,11 +2,16 @@
 #include <stdlib.h> // utilizar a função abs
 #include "pico/stdlib.h" // inclui a biblioteca padrão do pico para gpios e temporizadores
 #include "hardware/adc.h" // inclui a biblioteca para manipular o hardware adc
+#include "hardware/pwm.h"
 #include "hardware/irq.h" // inclui a biblioteca para interrupções
 #include "hardware/i2c.h" // inclui a biblioteca para utilizar o protocolo i2c
-#include "inc/neopixel.h" // inclui a biblioteca para utilizar a matriz de LEDs
 #include "inc/ssd1306.h" // inclui a biblioteca com definição das funções para manipulação do display OLED
 #include "inc/font.h" // inclui a biblioteca com as fontes dos caracteres para o display OLED
+
+#include "ws2818b.pio.h"
+#include "inc/leds_matrix.h"
+#include "inc/convert_to_rgba.h"
+#include "inc/sprites.h"
 
 #define LED_R 13
 #define LED_G 11
@@ -15,10 +20,11 @@
 #define JOYSTICK_Y 26
 #define BTN_A 5
 #define BTN_B 6
+#define BUZZER_PIN 21
 
-// Pino e número de LEDs da matriz de LEDs.
-#define LED_PIN 7
-#define LED_COUNT 25
+#define MATRIX_ROWS 5
+#define MATRIX_COLS 5
+#define MATRIX_LEDS 25 // define o numero de LEDS da matriz
 
 // Define os valores máximo e mínimo para configuração
 #define VOL_MIN 0
@@ -30,6 +36,8 @@
 #define I2C_SDA 14
 #define I2C_SCL 15
 #define SSD_1306_ADDR 0x3C
+
+uint buzzer_freq = 0;
 
 // inicia a estrutura do display OLED
 ssd1306_t ssd;
@@ -51,11 +59,23 @@ const uint32_t debounce_delay_ms = 260;
 // define qual o LED RGB que estará ligado (vermelho (0) ou verde (1))
 volatile bool led_rgb_state = true;
 
+npLED_t leds[LED_COUNT];
+int rgb_matrix[MATRIX_ROWS][MATRIX_COLS][LED_COUNT];    
+
 // inicializa os botões
 void btn_init(uint gpio) {
     gpio_init(gpio);
     gpio_set_dir(gpio, GPIO_IN);
     gpio_pull_up(gpio);
+}
+
+void insert_sprite(int sprite_index) {
+    npLED_t leds[LED_COUNT];
+    int rgb_matrix[MATRIX_ROWS][MATRIX_COLS][3];
+
+    convertARGBtoMatriz(matrix_sprites[sprite_index], rgb_matrix);
+    spriteWrite(rgb_matrix, leds);
+    matrizWrite(leds);
 }
 
 // configuração do protocolo i2c
@@ -129,54 +149,6 @@ void set_display_border() {
     ssd1306_rect(&ssd, 1, 1, 126, 62, true, false);
 }
 
-void setMatrixColor() {
-    if (volume_scale == 0) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 66, 135, 245);
-        }   
-    } else if (volume_scale == 1) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 0, 188, 153);
-        }   
-    } else if (volume_scale == 2) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 0, 190, 87);
-        }   
-    } else if (volume_scale == 3) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 118, 208, 112);
-        }   
-    } else if (volume_scale == 4) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 224, 228, 83);
-        }   
-    } else if (volume_scale == 5) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 253, 224, 56);
-        }   
-    } else if (volume_scale == 6) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 254, 191, 29);
-        }   
-    } else if (volume_scale == 7) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 255, 148, 50);
-        }   
-    } else if (volume_scale == 8) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 238, 69, 38);
-        }   
-    } else if (volume_scale == 9) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 240, 28, 5);
-        }   
-    } else if (volume_scale == 10) {
-        for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 254, 0, 6);
-        }   
-    }
-}
-
 // função para tratar as interrupções das gpios
 void gpio_irq_handler(uint gpio, uint32_t events) {
     uint32_t current_time = to_ms_since_boot(get_absolute_time()); // retorna o tempo total em ms desde o boot do rp2040
@@ -190,11 +162,19 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
             if (led_rgb_state && volume_scale > VOL_MIN) {
                 volume_scale = volume_scale - 1;
             }
-            
+
+            if (led_rgb_state && buzzer_freq > 0) {
+                buzzer_freq = buzzer_freq - 100;
+            }
+
             printf("Botao A pressionado!\n");
         } else if (gpio == BTN_B) { // verifica se o botão B foi pressionado
             if (led_rgb_state && volume_scale < VOL_MAX) {
                 volume_scale = volume_scale + 1;
+            }
+
+            if (led_rgb_state && buzzer_freq < 1000) {
+                buzzer_freq = buzzer_freq + 100;
             }
 
             printf("Botao B pressionado!\n");
@@ -209,6 +189,7 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
         }
 
         printf("Volume: %d\n", volume_scale);
+        printf("BUZZER: %d\n", buzzer_freq);
     } 
 }
 
@@ -268,17 +249,23 @@ int main() {
     gpio_set_irq_enabled(BTN_B, GPIO_IRQ_EDGE_FALL, true);
     gpio_set_irq_enabled(JOYSTICK_SW, GPIO_IRQ_EDGE_FALL, true);
 
-    // Inicializa e limpa a matriz de LEDs
-    npInit(LED_PIN, LED_COUNT);
-    npClear();
-    sleep_ms(1500);
+    //Inicializa a matriz de LEDs
+    matrizInit(LED_PIN, leds);
+    
+    // limpa a matriz de leds
+    npClear(leds);
+    matrizWrite(leds);
+    
+    // Configuração do GPIO para o buzzer como saída
+    gpio_init(BUZZER_PIN);
+    gpio_set_dir(BUZZER_PIN, GPIO_OUT);
 
     while (true) {
         // define o tipo de borda
         set_display_border();
 
         // Limpa a matriz de LEDs
-        npClear();
+        npClear(leds);
 
         // aplica o estado atual para os LED
         if (led_rgb_state) {
@@ -307,13 +294,13 @@ int main() {
         ssd1306_send_data(&ssd);
 
         if (led_rgb_state) {
-            
+            insert_sprite(volume_scale);
         } else {
-            npClear();
+            npClear(leds);
         } 
 
         // Atualiza a matriz de LEDs
-        npWrite();
+        matrizWrite(leds);
 
         // adiciona um atraso de 60ms para criar tempo para vizualização dos dados no monitor serial
         sleep_ms(60);

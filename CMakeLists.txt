@@ -60,6 +60,7 @@ target_link_libraries(projeto_revisao
         hardware_irq
         hardware_i2c
         hardware_pio
+        hardware_pwm
         hardware_clocks
         )
 
