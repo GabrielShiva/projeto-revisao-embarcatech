@@ -129,6 +129,42 @@ void set_display_border() {
     ssd1306_rect(&ssd, 1, 1, 126, 62, true, false);
 }
 
+void setMatrixColor() {
+    if (volume_scale == 0) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 66, 135, 245);
+        }   
+    } else if (volume_scale == 1) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 0, 188, 153);
+        }   
+    } else if (volume_scale == 2) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 0, 190, 87);
+        }   
+    } else if (volume_scale == 3) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 118, 208, 112);
+        }   
+    } else if (volume_scale == 4) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 224, 228, 83);
+        }   
+    } else if (volume_scale == 5) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 253, 224, 56);
+        }   
+    } else if (volume_scale == 6) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 254, 191, 29);
+        }   
+    } else if (volume_scale == 7) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 254, 191, 29);
+        }   
+    }
+}
+
 // função para tratar as interrupções das gpios
 void gpio_irq_handler(uint gpio, uint32_t events) {
     uint32_t current_time = to_ms_since_boot(get_absolute_time()); // retorna o tempo total em ms desde o boot do rp2040
@@ -259,9 +295,7 @@ int main() {
         ssd1306_send_data(&ssd);
 
         if (led_rgb_state) {
-            for (uint i = 0; i < LED_COUNT; i++) {
-                npSetLED(i, 80, 0, 0);
-            }   
+            
         } else {
             npClear();
         } 
