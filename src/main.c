@@ -241,8 +241,6 @@ int main() {
             gpio_put(LED_G, 0); 
         }
 
-
-        
         // realiza leitura para o eixo x
         uint16_t x_value = adc_start_read(1);
         // converte o valor para controle da intensidade do led vermelho tomado como menor intensidade a posição central
@@ -259,6 +257,14 @@ int main() {
 
         // atualiza o display OLED
         ssd1306_send_data(&ssd);
+
+        if (led_rgb_state) {
+            for (uint i = 0; i < LED_COUNT; i++) {
+                npSetLED(i, 80, 0, 0);
+            }   
+        } else {
+            npClear();
+        } 
 
         // Atualiza a matriz de LEDs
         npWrite();
