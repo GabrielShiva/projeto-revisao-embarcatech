@@ -172,6 +172,10 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
             led_rgb_state = !led_rgb_state; // muda o led que estará aceso (vermelho ou verde)
             
             printf("Botao do joystick (SW) pressionado!\n");
+
+            led_rgb_state ? 
+                printf("LED aceso: verde!\n") :
+                printf("LED aceso: vermelho!\n");
         }
     } 
 }
@@ -216,10 +220,11 @@ int main() {
     // inicializa os LEDs RGB
     gpio_init(LED_R);
     gpio_set_dir(LED_R, GPIO_OUT);
-    gpio_put(LED_R, 1);
+    gpio_put(LED_R, !led_rgb_state);
+
     gpio_init(LED_G);
     gpio_set_dir(LED_G, GPIO_OUT);
-    gpio_put(LED_G, 0);
+    gpio_put(LED_G, led_rgb_state);
 
     // configuração dos botões B, A e SW
     btn_init(BTN_A);
@@ -235,6 +240,15 @@ int main() {
         // define o tipo de borda
         set_display_border();
 
+        // aplica o estado atual para os LED
+        if (led_rgb_state) {
+            gpio_put(LED_G, 1); 
+            gpio_put(LED_R, 0); 
+        } else {
+            gpio_put(LED_R, 1); 
+            gpio_put(LED_G, 0); 
+        }
+        
         // realiza leitura para o eixo x
         uint16_t x_value = adc_start_read(1);
         // converte o valor para controle da intensidade do led vermelho tomado como menor intensidade a posição central
