@@ -37,7 +37,7 @@
 #define I2C_SCL 15
 #define SSD_1306_ADDR 0x3C
 
-uint buzzer_freq = 0;
+float buzzer_freq = 0.0;
 
 // inicia a estrutura do display OLED
 ssd1306_t ssd;
@@ -61,6 +61,10 @@ volatile bool led_rgb_state = true;
 
 npLED_t leds[LED_COUNT];
 int rgb_matrix[MATRIX_ROWS][MATRIX_COLS][LED_COUNT];    
+
+// configurações para o PWM do buzzer
+uint slice_num;
+uint channel_num;
 
 // inicializa os botões
 void btn_init(uint gpio) {
@@ -149,6 +153,39 @@ void set_display_border() {
     ssd1306_rect(&ssd, 1, 1, 126, 62, true, false);
 }
 
+void buzzer_init() {
+    // Configura o pino do buzzer para PWM
+    gpio_set_function(BUZZER_PIN, GPIO_FUNC_PWM);
+    slice_num = pwm_gpio_to_slice_num(BUZZER_PIN);
+    channel_num = pwm_gpio_to_channel(BUZZER_PIN);
+    
+    // Configuração inicial do PWM
+    pwm_config config = pwm_get_default_config();
+    pwm_init(slice_num, &config, true);
+    pwm_set_enabled(slice_num, false); // desliga PWM do pino ligado ao buzzer
+}
+
+void define_buzzer_state() {
+    if(led_rgb_state && volume_scale > 0) {
+        buzzer_freq = 200.0f + (volume_scale - 1) * 200.0f;
+        
+        // Cálculos para configuração do PWM
+        uint32_t clock = 125000000; // Clock base de 125MHz
+        uint32_t divider = 125000000 / (uint32_t)(buzzer_freq * 1000);
+        uint32_t wrap = 125000000 / (divider * (uint32_t)buzzer_freq) - 1;
+        
+        // Aplica as configurações
+        pwm_set_clkdiv_int_frac(slice_num, divider, 0);
+        pwm_set_wrap(slice_num, wrap);
+        pwm_set_chan_level(slice_num, channel_num, wrap / 2); // Define o Duty cycle de 50%
+        pwm_set_enabled(slice_num, true);
+    } else {
+        // Desliga o PWM
+        pwm_set_enabled(slice_num, false);
+        gpio_put(BUZZER_PIN, 0); // Garante o silêncio
+    }
+}
+
 // função para tratar as interrupções das gpios
 void gpio_irq_handler(uint gpio, uint32_t events) {
     uint32_t current_time = to_ms_since_boot(get_absolute_time()); // retorna o tempo total em ms desde o boot do rp2040
@@ -163,18 +200,10 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
                 volume_scale = volume_scale - 1;
             }
 
-            if (led_rgb_state && buzzer_freq > 0) {
-                buzzer_freq = buzzer_freq - 100;
-            }
-
             printf("Botao A pressionado!\n");
         } else if (gpio == BTN_B) { // verifica se o botão B foi pressionado
             if (led_rgb_state && volume_scale < VOL_MAX) {
                 volume_scale = volume_scale + 1;
-            }
-
-            if (led_rgb_state && buzzer_freq < 1000) {
-                buzzer_freq = buzzer_freq + 100;
             }
 
             printf("Botao B pressionado!\n");
@@ -189,7 +218,7 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
         }
 
         printf("Volume: %d\n", volume_scale);
-        printf("BUZZER: %d\n", buzzer_freq);
+        printf("BUZZER: %.2f\n", buzzer_freq);
     } 
 }
 
@@ -256,9 +285,8 @@ int main() {
     npClear(leds);
     matrizWrite(leds);
     
-    // Configuração do GPIO para o buzzer como saída
-    gpio_init(BUZZER_PIN);
-    gpio_set_dir(BUZZER_PIN, GPIO_OUT);
+    // Configuração do buzzer
+    buzzer_init();
 
     while (true) {
         // define o tipo de borda
@@ -298,6 +326,8 @@ int main() {
         } else {
             npClear(leds);
         } 
+
+        define_buzzer_state();
 
         // Atualiza a matriz de LEDs
         matrizWrite(leds);
