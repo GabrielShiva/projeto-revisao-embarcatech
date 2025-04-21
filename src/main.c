@@ -160,7 +160,19 @@ void setMatrixColor() {
         }   
     } else if (volume_scale == 7) {
         for (uint i = 0; i < LED_COUNT; i++) {
-            npSetLED(i, 254, 191, 29);
+            npSetLED(i, 255, 148, 50);
+        }   
+    } else if (volume_scale == 8) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 238, 69, 38);
+        }   
+    } else if (volume_scale == 9) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 240, 28, 5);
+        }   
+    } else if (volume_scale == 10) {
+        for (uint i = 0; i < LED_COUNT; i++) {
+            npSetLED(i, 254, 0, 6);
         }   
     }
 }
