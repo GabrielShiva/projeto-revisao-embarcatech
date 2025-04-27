@@ -1,17 +1,17 @@
-#include <stdio.h> // inclui a biblioteca padrão para I/O 
+#include <stdio.h> // inclui a biblioteca padrão para I/O
 #include <stdlib.h> // utilizar a função abs
 #include "pico/stdlib.h" // inclui a biblioteca padrão do pico para gpios e temporizadores
 #include "hardware/adc.h" // inclui a biblioteca para manipular o hardware adc
 #include "hardware/pwm.h"
 #include "hardware/irq.h" // inclui a biblioteca para interrupções
 #include "hardware/i2c.h" // inclui a biblioteca para utilizar o protocolo i2c
-#include "inc/ssd1306.h" // inclui a biblioteca com definição das funções para manipulação do display OLED
-#include "inc/font.h" // inclui a biblioteca com as fontes dos caracteres para o display OLED
+#include "lib/ssd1306.h" // inclui a biblioteca com definição das funções para manipulação do display OLED
+#include "lib/font.h" // inclui a biblioteca com as fontes dos caracteres para o display OLED
 
 #include "ws2818b.pio.h"
-#include "inc/leds_matrix.h"
-#include "inc/convert_to_rgba.h"
-#include "inc/sprites.h"
+#include "lib/leds_matrix.h"
+#include "lib/convert_to_rgba.h"
+#include "lib/sprites.h"
 
 #define LED_R 13
 #define LED_G 11
@@ -51,16 +51,16 @@ const uint16_t central_y_pos = 1988;
 // define variáveis para debounce do botão
 volatile bool btn_a_state = false;
 volatile bool btn_b_state = false;
-volatile uint32_t last_time_btn_press = 0; 
+volatile uint32_t last_time_btn_press = 0;
 
-// debounce delay 
+// debounce delay
 const uint32_t debounce_delay_ms = 260;
 
 // define qual o LED RGB que estará ligado (vermelho (0) ou verde (1))
 volatile bool led_rgb_state = true;
 
 npLED_t leds[LED_COUNT];
-int rgb_matrix[MATRIX_ROWS][MATRIX_COLS][LED_COUNT];    
+int rgb_matrix[MATRIX_ROWS][MATRIX_COLS][LED_COUNT];
 
 // configurações para o PWM do buzzer
 uint slice_num;
@@ -101,7 +101,7 @@ void display_init(){
     ssd1306_init(&ssd, WIDTH, HEIGHT, false, SSD_1306_ADDR, I2C_ID); // Inicializa o display
     ssd1306_config(&ssd); // Configura o display
     ssd1306_send_data(&ssd); // Envia os dados para o display
-  
+
     // Limpa o display. O display inicia com todos os pixels apagados.
     ssd1306_fill(&ssd, false);
     ssd1306_send_data(&ssd);
@@ -111,7 +111,7 @@ void display_init(){
 void adc_setup() {
     // inicializa o hardware adc
     adc_init();
-    
+
     // inicialização dos pinos analógicos
     adc_gpio_init(JOYSTICK_X);
     adc_gpio_init(JOYSTICK_Y);
@@ -131,7 +131,7 @@ uint16_t adc_start_read(uint channel_selected) {
         adc_select_input(1);
         // lê o valor do canal 0 para o eixo y [0-4095]
         channel_value = adc_read();
-    } 
+    }
 
     return channel_value;
 }
@@ -158,7 +158,7 @@ void buzzer_init() {
     gpio_set_function(BUZZER_PIN, GPIO_FUNC_PWM);
     slice_num = pwm_gpio_to_slice_num(BUZZER_PIN);
     channel_num = pwm_gpio_to_channel(BUZZER_PIN);
-    
+
     // Configuração inicial do PWM
     pwm_config config = pwm_get_default_config();
     pwm_init(slice_num, &config, true);
@@ -168,12 +168,12 @@ void buzzer_init() {
 void define_buzzer_state() {
     if(led_rgb_state && volume_scale > 0) {
         buzzer_freq = 200.0f + (volume_scale - 1) * 200.0f;
-        
+
         // Cálculos para configuração do PWM
         uint32_t clock = 125000000; // Clock base de 125MHz
         uint32_t divider = 125000000 / (uint32_t)(buzzer_freq * 1000);
         uint32_t wrap = 125000000 / (divider * (uint32_t)buzzer_freq) - 1;
-        
+
         // Aplica as configurações
         pwm_set_clkdiv_int_frac(slice_num, divider, 0);
         pwm_set_wrap(slice_num, wrap);
@@ -209,17 +209,17 @@ void gpio_irq_handler(uint gpio, uint32_t events) {
             printf("Botao B pressionado!\n");
         } else if (gpio == JOYSTICK_SW) { // verifica se o botão SW foi pressionado
             led_rgb_state = !led_rgb_state; // muda o led que estará aceso (vermelho ou verde)
-            
+
             printf("Botao do joystick (SW) pressionado!\n");
 
-            led_rgb_state ? 
+            led_rgb_state ?
                 printf("LED aceso: verde!\n") :
                 printf("LED aceso: vermelho!\n");
         }
 
         printf("Volume: %d\n", volume_scale);
         printf("BUZZER: %.2f\n", buzzer_freq);
-    } 
+    }
 }
 
 // calcula a nova posição do quadrado de acordo com as coordenadas fornecidas pelo joystick
@@ -248,14 +248,14 @@ void move_square(uint16_t x_value, uint16_t y_value) {
 
 int main() {
     // chama função para comunicação serial via usb para debug
-    stdio_init_all(); 
+    stdio_init_all();
 
     // chama a função para configuração do protocolo i2c
     i2c_setup();
 
     // inicializa o display OLED
     display_init();
-    
+
     // chama a função que inicializa o adc
     adc_setup();
 
@@ -280,11 +280,11 @@ int main() {
 
     //Inicializa a matriz de LEDs
     matrizInit(LED_PIN, leds);
-    
+
     // limpa a matriz de leds
     npClear(leds);
     matrizWrite(leds);
-    
+
     // Configuração do buzzer
     buzzer_init();
 
@@ -297,11 +297,11 @@ int main() {
 
         // aplica o estado atual para os LED
         if (led_rgb_state) {
-            gpio_put(LED_G, 1); 
-            gpio_put(LED_R, 0); 
+            gpio_put(LED_G, 1);
+            gpio_put(LED_R, 0);
         } else {
-            gpio_put(LED_R, 1); 
-            gpio_put(LED_G, 0); 
+            gpio_put(LED_R, 1);
+            gpio_put(LED_G, 0);
         }
 
         // realiza leitura para o eixo x
@@ -325,7 +325,7 @@ int main() {
             insert_sprite(volume_scale);
         } else {
             npClear(leds);
-        } 
+        }
 
         define_buzzer_state();
 
